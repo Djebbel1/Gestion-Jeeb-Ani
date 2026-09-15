@@ -1,25 +1,3465 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#173b6d"><title>Gestion Jeeb-Ani</title><style>
-*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f4f7fb;color:#172033}.app{display:flex;min-height:100vh}.side{width:230px;background:#173b6d;color:#fff;padding:18px;position:fixed;inset:0 auto 0 0}.brand{font-size:22px;font-weight:800;margin:8px 4px 25px}.nav button{display:block;width:100%;border:0;background:transparent;color:#fff;text-align:left;padding:12px;border-radius:9px;margin:4px 0;font-size:15px}.nav button.active,.nav button:hover{background:#245a9a}.main{margin-left:230px;padding:22px;width:calc(100% - 230px)}header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}h1{margin:0;font-size:26px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.card{background:white;border:1px solid #e1e7ef;border-radius:14px;padding:16px;box-shadow:0 2px 8px #18365d0d}.label{color:#68778a;font-size:12px}.value{font-size:25px;font-weight:800;margin-top:7px}.actions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:0;border-radius:8px;background:#245a9a;color:#fff;padding:10px 14px}.btn.yellow{background:#e8b923;color:#222}.section{margin-top:18px}.table{width:100%;border-collapse:collapse}.table th,.table td{padding:10px;border-bottom:1px solid #e8edf3;text-align:left}.form{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.field label{display:block;font-size:12px;color:#68778a;margin-bottom:4px}.field input,.field select{width:100%;padding:10px;border:1px solid #ccd6e2;border-radius:8px}.full{grid-column:1/-1}.notice{padding:12px;border-radius:10px;background:#eef3f9;margin-bottom:14px}.error{background:#fff0f0;color:#a11;border:1px solid #f2b8b8;padding:14px;border-radius:10px}@media(max-width:800px){.side{width:72px;padding:10px}.brand{font-size:0}.brand:after{content:'JA';font-size:20px}.nav button{font-size:0;text-align:center}.nav button:before{content:'•';font-size:24px}.main{margin-left:72px;width:calc(100% - 72px);padding:14px}.grid{grid-template-columns:repeat(2,1fr)}.form{grid-template-columns:1fr}}@media(max-width:500px){.grid{grid-template-columns:1fr}.top{display:block}}
-</style></head><body><div id="app"></div><script>
-(function(){
-'use strict';
-var KEY='jeebAni_v2';
-function id(){return Date.now().toString(36)+Math.random().toString(36).slice(2)}
-function load(){try{return JSON.parse(localStorage.getItem(KEY))||{articles:[],sales:[],purchases:[],expenses:[],clients:[],accounts:[{id:id(),name:'Caisse',balance:0}],payments:[]}}catch(e){return {articles:[],sales:[],purchases:[],expenses:[],clients:[],accounts:[{id:id(),name:'Caisse',balance:0}],payments:[]}}}
-var db=load();
-function save(){try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){}}
-function money(n){return Number(n||0).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' '+(db.currency||'USD')}
-function sum(a,k){return a.reduce(function(s,x){return s+Number(x[k]||0)},0)}
-function go(page){location.hash=page;render()}
-function nav(active){var items=[['dashboard','Tableau de bord'],['sales','Ventes'],['purchases','Achats'],['stock','Articles & stock'],['finance','Finances'],['clients','Clients'],['reports','Rapports'],['settings','Paramètres']];return '<nav class="nav">'+items.map(function(x){return '<button class="'+(active===x[0]?'active':'')+'" onclick="window.JA.go(\''+x[0]+'\')">'+x[1]+'</button>'}).join('')+'</nav>'}
-function shell(active,title,content){document.getElementById('app').innerHTML='<div class="app"><aside class="side"><div class="brand">Gestion Jeeb-Ani</div>'+nav(active)+'</aside><main class="main"><header><h1>'+title+'</h1><div class="notice">Hors ligne • Données locales</div></header>'+content+'</main></div>'}
-function dashboard(){var ca=sum(db.sales,'total'),pa=sum(db.purchases,'total'),ex=sum(db.expenses,'amount');shell('dashboard','Tableau de bord','<div class="grid"><div class="card"><div class="label">Chiffre d’affaires</div><div class="value">'+money(ca)+'</div></div><div class="card"><div class="label">Achats</div><div class="value">'+money(pa)+'</div></div><div class="card"><div class="label">Dépenses</div><div class="value">'+money(ex)+'</div></div><div class="card"><div class="label">Articles</div><div class="value">'+db.articles.length+'</div></div></div><div class="section card"><h2>Gestion rapide</h2><div class="actions"><button class="btn" onclick="JA.go(\'sales\')">Nouvelle vente</button><button class="btn" onclick="JA.go(\'purchases\')">Nouvel achat</button><button class="btn yellow" onclick="JA.go(\'stock\')">Gérer le stock</button></div></div><div class="section card"><h2>Résultat estimatif</h2><div class="value">'+money(ca-pa-ex)+'</div></div>')}
-function listPage(type,title,fields){var arr=db[type];var rows=arr.map(function(x){return '<tr>'+fields.map(function(f){return '<td>'+String(x[f]??'')+'</td>'}).join('')+'</tr>'}).join('');shell(type,title,'<div class="card"><div class="actions"><button class="btn" onclick="JA.add(\''+type+'\')">Ajouter</button></div><div class="section" style="overflow:auto"><table class="table"><thead><tr>'+fields.map(function(f){return '<th>'+f+'</th>'}).join('')+'</tr></thead><tbody>'+rows+'</tbody></table></div></div>')}
-function formPage(type,title,labels){shell(type,title,'<div class="card"><div class="form">'+labels.map(function(x){return '<div class="field"><label>'+x[1]+'</label><input id="f_'+x[0]+'" type="'+(x[2]||'text')+'"></div>'}).join('')+'</div><div class="actions section"><button class="btn" onclick="JA.saveForm(\''+type+'\')">Enregistrer</button><button class="btn yellow" onclick="JA.go(\'dashboard\')">Annuler</button></div></div>')}
-function add(t){if(t==='sales')return formPage('sales','Nouvelle vente',[['date','Date','date'],['customer','Client'],['total','Montant','number']]);if(t==='purchases')return formPage('purchases','Nouvel achat',[['date','Date','date'],['supplier','Fournisseur'],['total','Montant','number']]);if(t==='expenses')return formPage('expenses','Nouvelle dépense',[['date','Date','date'],['label','Libellé'],['amount','Montant','number']]);if(t==='articles')return formPage('articles','Nouvel article',[['code','Code'],['name','Désignation'],['qty','Stock initial','number'],['price','Prix de vente','number']])}
-function saveForm(t){var o={id:id()};document.querySelectorAll('[id^="f_"]').forEach(function(el){o[el.id.slice(2)]=el.value});if(t==='sales'){o.total=Number(o.total||0);db.sales.push(o)}else if(t==='purchases'){o.total=Number(o.total||0);db.purchases.push(o)}else if(t==='expenses'){o.amount=Number(o.amount||0);db.expenses.push(o)}else if(t==='articles'){o.qty=Number(o.qty||0);o.price=Number(o.price||0);db.articles.push(o)}save();go(t==='articles'?'stock':t==='expenses'?'finance':t)}
-function render(){try{var p=location.hash.slice(1)||'dashboard';if(p==='dashboard')dashboard();else if(p==='sales')listPage('sales','Ventes',['date','customer','total']);else if(p==='purchases')listPage('purchases','Achats',['date','supplier','total']);else if(p==='stock')listPage('articles','Articles & stock',['code','name','qty','price']);else if(p==='finance')listPage('expenses','Finances / Dépenses',['date','label','amount']);else if(p==='clients')listPage('clients','Clients',['name','phone']);else if(p==='reports')shell('reports','Rapports','<div class="grid"><div class="card"><div class="label">Ventes</div><div class="value">'+money(sum(db.sales,'total'))+'</div></div><div class="card"><div class="label">Achats</div><div class="value">'+money(sum(db.purchases,'total'))+'</div></div><div class="card"><div class="label">Dépenses</div><div class="value">'+money(sum(db.expenses,'amount'))+'</div></div></div>');else if(p==='settings')shell('settings','Paramètres','<div class="card"><h2>Gestion Jeeb-Ani</h2><p>Données enregistrées uniquement sur cet appareil.</p><div class="actions"><button class="btn" onclick="JA.exportData()">Exporter les données</button><button class="btn yellow" onclick="JA.reset()">Réinitialiser</button></div></div>');else dashboard()}catch(e){document.getElementById('app').innerHTML='<div style="padding:24px"><div class="error"><b>Gestion Jeeb-Ani n’a pas pu démarrer.</b><br>'+String(e.message||e)+'</div></div>'}}
-window.JA={go:go,add:add,saveForm:saveForm,exportData:function(){var a=document.createElement('a');a.href='data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify(db,null,2));a.download='gestion-jeeb-ani.json';a.click()},reset:function(){if(confirm('Réinitialiser les données locales ?')){localStorage.removeItem(KEY);location.reload()}}};
-window.addEventListener('hashchange',render);render();
-})();
-</script></body></html>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0b5ed7">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Gestion Jeeb-Ani</title>
+
+<style>
+*{box-sizing:border-box}
+body{
+    margin:0;
+    font-family:Arial,Helvetica,sans-serif;
+    background:#f4f6f9;
+    color:#222;
+}
+button,input,select,textarea{
+    font:inherit;
+}
+button{
+    cursor:pointer;
+}
+.app{
+    display:flex;
+    min-height:100vh;
+}
+.sidebar{
+    width:245px;
+    background:#123b70;
+    color:white;
+    position:fixed;
+    top:0;
+    bottom:0;
+    left:0;
+    overflow-y:auto;
+    padding:18px 12px;
+}
+.logo{
+    text-align:center;
+    padding:10px 5px 22px;
+    border-bottom:1px solid rgba(255,255,255,.2);
+}
+.logo h1{
+    font-size:21px;
+    margin:0;
+}
+.logo p{
+    margin:5px 0 0;
+    font-size:12px;
+    opacity:.8;
+}
+.nav{
+    margin-top:15px;
+}
+.nav button{
+    width:100%;
+    border:0;
+    background:transparent;
+    color:white;
+    text-align:left;
+    padding:13px 14px;
+    border-radius:8px;
+    margin-bottom:5px;
+}
+.nav button:hover,
+.nav button.active{
+    background:#0b5ed7;
+}
+.main{
+    margin-left:245px;
+    width:calc(100% - 245px);
+}
+.topbar{
+    background:white;
+    padding:16px 22px;
+    border-bottom:1px solid #ddd;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+}
+.topbar h2{
+    margin:0;
+    font-size:22px;
+}
+.status{
+    font-size:13px;
+    color:#16803c;
+}
+.content{
+    padding:22px;
+}
+.page{
+    display:none;
+}
+.page.active{
+    display:block;
+}
+.cards{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:15px;
+    margin-bottom:22px;
+}
+.card{
+    background:white;
+    border-radius:12px;
+    padding:18px;
+    box-shadow:0 2px 8px rgba(0,0,0,.06);
+}
+.card .label{
+    color:#666;
+    font-size:13px;
+}
+.card .value{
+    font-size:25px;
+    font-weight:bold;
+    margin-top:8px;
+}
+.panel{
+    background:white;
+    border-radius:12px;
+    padding:20px;
+    margin-bottom:20px;
+    box-shadow:0 2px 8px rgba(0,0,0,.05);
+}
+.panel h3{
+    margin-top:0;
+}
+.form-grid{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:14px;
+}
+.field{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+}
+.field label{
+    font-size:13px;
+    font-weight:bold;
+}
+.field input,
+.field select,
+.field textarea{
+    border:1px solid #ccc;
+    border-radius:7px;
+    padding:10px;
+    background:white;
+}
+.field textarea{
+    min-height:80px;
+    resize:vertical;
+}
+.full{
+    grid-column:1/-1;
+}
+.actions{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    margin-top:15px;
+}
+.btn{
+    border:0;
+    border-radius:7px;
+    padding:10px 15px;
+    background:#0b5ed7;
+    color:white;
+}
+.btn:hover{
+    opacity:.9;
+}
+.btn.secondary{
+    background:#6c757d;
+}
+.btn.success{
+    background:#198754;
+}
+.btn.warning{
+    background:#f0ad00;
+    color:#111;
+}
+.btn.danger{
+    background:#dc3545;
+}
+.btn.light{
+    background:#e9ecef;
+    color:#222;
+}
+.table-wrap{
+    overflow-x:auto;
+}
+table{
+    width:100%;
+    border-collapse:collapse;
+    min-width:750px;
+}
+th,td{
+    border-bottom:1px solid #e5e5e5;
+    padding:10px 8px;
+    text-align:left;
+    font-size:13px;
+}
+th{
+    background:#f3f5f7;
+}
+.badge{
+    display:inline-block;
+    padding:4px 8px;
+    border-radius:20px;
+    font-size:11px;
+    font-weight:bold;
+}
+.badge.ok{
+    background:#d1e7dd;
+    color:#0f5132;
+}
+.badge.low{
+    background:#fff3cd;
+    color:#664d03;
+}
+.badge.out{
+    background:#f8d7da;
+    color:#842029;
+}
+.alert{
+    padding:12px 14px;
+    border-radius:8px;
+    margin-bottom:15px;
+}
+.alert.warning{
+    background:#fff3cd;
+    color:#664d03;
+}
+.alert.success{
+    background:#d1e7dd;
+    color:#0f5132;
+}
+.alert.danger{
+    background:#f8d7da;
+    color:#842029;
+}
+.search-row{
+    display:flex;
+    gap:10px;
+    margin-bottom:15px;
+    flex-wrap:wrap;
+}
+.search-row input,
+.search-row select{
+    padding:10px;
+    border:1px solid #ccc;
+    border-radius:7px;
+}
+.empty{
+    text-align:center;
+    padding:30px;
+    color:#777;
+}
+.modal{
+    display:none;
+    position:fixed;
+    z-index:1000;
+    inset:0;
+    background:rgba(0,0,0,.5);
+    align-items:center;
+    justify-content:center;
+    padding:15px;
+}
+.modal.show{
+    display:flex;
+}
+.modal-box{
+    background:white;
+    width:min(800px,100%);
+    max-height:90vh;
+    overflow-y:auto;
+    border-radius:12px;
+    padding:22px;
+}
+.modal-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:18px;
+}
+.modal-head h3{
+    margin:0;
+}
+.close{
+    border:0;
+    background:#eee;
+    border-radius:50%;
+    width:35px;
+    height:35px;
+}
+.stat{
+    font-size:12px;
+    color:#666;
+}
+.warning-row{
+    background:#fff9e6;
+}
+.danger-row{
+    background:#fff0f1;
+}
+.footer{
+    text-align:center;
+    color:#777;
+    font-size:12px;
+    padding:20px;
+}
+
+@media(max-width:1000px){
+    .cards{
+        grid-template-columns:repeat(2,1fr);
+    }
+    .form-grid{
+        grid-template-columns:repeat(2,1fr);
+    }
+}
+@media(max-width:700px){
+    .sidebar{
+        width:100%;
+        position:relative;
+        height:auto;
+    }
+    .app{
+        display:block;
+    }
+    .main{
+        margin-left:0;
+        width:100%;
+    }
+    .nav{
+        display:grid;
+        grid-template-columns:repeat(2,1fr);
+        gap:5px;
+    }
+    .nav button{
+        margin:0;
+    }
+    .cards{
+        grid-template-columns:1fr;
+    }
+    .form-grid{
+        grid-template-columns:1fr;
+    }
+    .content{
+        padding:12px;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<div class="app">
+
+<aside class="sidebar">
+    <div class="logo">
+        <h1>Gestion Jeeb-Ani</h1>
+        <p>Gestion commerciale et financière</p>
+    </div>
+
+    <nav class="nav">
+        <button data-page="dashboard" onclick="showPage('dashboard')">🏠 Tableau de bord</button>
+        <button data-page="sales" onclick="showPage('sales')">🛒 Ventes</button>
+        <button data-page="purchases" onclick="showPage('purchases')">📦 Achats</button>
+        <button data-page="stock" onclick="showPage('stock')">📋 Articles & Stock</button>
+        <button data-page="finance" onclick="showPage('finance')">💰 Finances</button>
+        <button data-page="clients" onclick="showPage('clients')">👥 Clients</button>
+        <button data-page="reports" onclick="showPage('reports')">📊 Rapports</button>
+        <button data-page="settings" onclick="showPage('settings')">⚙️ Paramètres</button>
+    </nav>
+</aside>
+
+<main class="main">
+
+<header class="topbar">
+    <h2 id="pageTitle">Tableau de bord</h2>
+    <div class="status">● Données locales</div>
+</header>
+
+<div class="content">
+
+<!-- DASHBOARD -->
+<section id="dashboard" class="page active">
+
+    <div class="cards">
+        <div class="card">
+            <div class="label">Chiffre d'affaires</div>
+            <div class="value" id="dashSales">0</div>
+        </div>
+
+        <div class="card">
+            <div class="label">Dépenses</div>
+            <div class="value" id="dashExpenses">0</div>
+        </div>
+
+        <div class="card">
+            <div class="label">Créances clients</div>
+            <div class="value" id="dashReceivables">0</div>
+        </div>
+
+        <div class="card">
+            <div class="label">Valeur du stock</div>
+            <div class="value" id="dashStock">0</div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h3>État du stock</h3>
+        <div id="dashboardStockAlerts"></div>
+    </div>
+
+    <div class="panel">
+        <h3>Résumé</h3>
+        <div id="dashboardSummary"></div>
+    </div>
+
+</section>
+
+
+<!-- SALES -->
+<section id="sales" class="page">
+
+    <div class="panel">
+        <h3>Nouvelle vente</h3>
+
+        <form id="saleForm">
+
+            <div class="form-grid">
+
+                <div class="field">
+                    <label>Date</label>
+                    <input type="date" id="saleDate" required>
+                </div>
+
+                <div class="field">
+                    <label>Client</label>
+                    <select id="saleClient">
+                        <option value="">Client comptant</option>
+                    </select>
+                </div>
+
+                <div class="field">
+                    <label>Mode de paiement</label>
+                    <select id="salePaymentMethod">
+                        <option>Espèces</option>
+                        <option>Mobile Money</option>
+                        <option>Banque</option>
+                        <option>Crédit</option>
+                    </select>
+                </div>
+
+                <div class="field">
+                    <label>Article</label>
+                    <select id="saleArticle" required></select>
+                </div>
+
+                <div class="field">
+                    <label>Quantité</label>
+                    <input type="number" id="saleQty" min="1" step="0.01" required>
+                </div>
+
+                <div class="field">
+                    <label>Prix unitaire</label>
+                    <input type="number" id="salePrice" min="0" step="0.01" required>
+                </div>
+
+                <div class="field full">
+                    <label>Observation</label>
+                    <textarea id="saleObservation"></textarea>
+                </div>
+
+            </div>
+
+            <div class="actions">
+                <button class="btn success" type="submit">Enregistrer la vente</button>
+            </div>
+
+        </form>
+    </div>
+
+    <div class="panel">
+        <h3>Historique des ventes</h3>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Référence</th>
+                        <th>Article</th>
+                        <th>Qté</th>
+                        <th>Prix</th>
+                        <th>Total</th>
+                        <th>Client</th>
+                        <th>Paiement</th>
+                    </tr>
+                </thead>
+                <tbody id="salesTable"></tbody>
+            </table>
+        </div>
+    </div>
+
+</section>
+
+
+<!-- PURCHASES -->
+<section id="purchases" class="page">
+
+    <div class="panel">
+        <h3>Nouvel achat</h3>
+
+        <form id="purchaseForm">
+
+            <div class="form-grid">
+
+                <div class="field">
+                    <label>Date</label>
+                    <input type="date" id="purchaseDate" required>
+                </div>
+
+                <div class="field">
+                    <label>Fournisseur</label>
+                    <input type="text" id="purchaseSupplier">
+                </div>
+
+                <div class="field">
+                    <label>Référence facture</label>
+                    <input type="text" id="purchaseReference">
+                </div>
+
+                <div class="field">
+                    <label>Article</label>
+                    <select id="purchaseArticle" required></select>
+                </div>
+
+                <div class="field">
+                    <label>Quantité</label>
+                    <input type="number" id="purchaseQty" min="0.01" step="0.01" required>
+                </div>
+
+                <div class="field">
+                    <label>Prix d'achat unitaire</label>
+                    <input type="number" id="purchasePrice" min="0" step="0.01" required>
+                </div>
+
+                <div class="field">
+                    <label>Transport</label>
+                    <input type="number" id="purchaseTransport" value="0" min="0" step="0.01">
+                </div>
+
+                <div class="field">
+                    <label>Taxes</label>
+                    <input type="number" id="purchaseTaxes" value="0" min="0" step="0.01">
+                </div>
+
+                <div class="field">
+                    <label>Autres frais</label>
+                    <input type="number" id="purchaseOther" value="0" min="0" step="0.01">
+                </div>
+
+            </div>
+
+            <div class="actions">
+                <button class="btn success" type="submit">Enregistrer l'achat</button>
+            </div>
+
+        </form>
+    </div>
+
+    <div class="panel">
+        <h3>Historique des achats</h3>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Référence</th>
+                        <th>Fournisseur</th>
+                        <th>Article</th>
+                        <th>Qté</th>
+                        <th>Prix achat</th>
+                        <th>Frais</th>
+                        <th>Coût réel</th>
+                    </tr>
+                </thead>
+                <tbody id="purchasesTable"></tbody>
+            </table>
+        </div>
+    </div>
+
+</section>
+
+
+<!-- STOCK -->
+<section id="stock" class="page">
+
+    <div class="panel">
+
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap">
+            <div>
+                <h3>Articles & Stock</h3>
+                <div class="stat">
+                    Gestion du stock, coût réel, prix de vente et marge
+                </div>
+            </div>
+
+            <button class="btn success" onclick="openArticleModal()">
+                + Nouvel article
+            </button>
+        </div>
+
+    </div>
+
+    <div id="stockAlerts"></div>
+
+    <div class="panel">
+
+        <div class="search-row">
+            <input
+                type="search"
+                id="stockSearch"
+                placeholder="Rechercher un article..."
+                oninput="renderStock()"
+            >
+
+            <select id="stockFilter" onchange="renderStock()">
+                <option value="all">Tous les articles</option>
+                <option value="ok">Stock normal</option>
+                <option value="low">Stock faible</option>
+                <option value="out">Rupture</option>
+            </select>
+        </div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Code</th>
+                        <th>Désignation</th>
+                        <th>Catégorie</th>
+                        <th>Unité</th>
+                        <th>Stock initial</th>
+                        <th>Entrées</th>
+                        <th>Sorties</th>
+                        <th>Disponible</th>
+                        <th>Coût unitaire</th>
+                        <th>Prix vente</th>
+                        <th>Marge</th>
+                        <th>Valeur stock</th>
+                        <th>État</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+
+                <tbody id="stockTable"></tbody>
+
+            </table>
+        </div>
+
+    </div>
+
+</section>
+
+
+<!-- FINANCE -->
+<section id="finance" class="page">
+
+    <div class="panel">
+        <h3>Nouvelle dépense</h3>
+
+        <form id="expenseForm">
+
+            <div class="form-grid">
+
+                <div class="field">
+                    <label>Date</label>
+                    <input type="date" id="expenseDate" required>
+                </div>
+
+                <div class="field">
+                    <label>Catégorie</label>
+                    <select id="expenseCategory">
+                        <option>Transport</option>
+                        <option>Loyer</option>
+                        <option>Électricité</option>
+                        <option>Communication</option>
+                        <option>Salaires</option>
+                        <option>Autres</option>
+                    </select>
+                </div>
+
+                <div class="field">
+                    <label>Montant</label>
+                    <input type="number" id="expenseAmount" min="0" step="0.01" required>
+                </div>
+
+                <div class="field">
+                    <label>Mode de paiement</label>
+                    <select id="expensePaymentMethod">
+                        <option>Espèces</option>
+                        <option>Mobile Money</option>
+                        <option>Banque</option>
+                    </select>
+                </div>
+
+                <div class="field full">
+                    <label>Libellé</label>
+                    <input type="text" id="expenseLabel" required>
+                </div>
+
+            </div>
+
+            <div class="actions">
+                <button class="btn success" type="submit">
+                    Enregistrer la dépense
+                </button>
+            </div>
+
+        </form>
+    </div>
+
+    <div class="panel">
+        <h3>Historique des dépenses</h3>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Catégorie</th>
+                        <th>Libellé</th>
+                        <th>Montant</th>
+                        <th>Paiement</th>
+                    </tr>
+                </thead>
+                <tbody id="expensesTable"></tbody>
+            </table>
+        </div>
+    </div>
+
+</section>
+
+
+<!-- CLIENTS -->
+<section id="clients" class="page">
+
+    <div class="panel">
+        <h3>Nouveau client</h3>
+
+        <form id="clientForm">
+
+            <div class="form-grid">
+
+                <div class="field">
+                    <label>Nom</label>
+                    <input type="text" id="clientName" required>
+                </div>
+
+                <div class="field">
+                    <label>Téléphone</label>
+                    <input type="text" id="clientPhone">
+                </div>
+
+                <div class="field">
+                    <label>Limite de crédit</label>
+                    <input type="number" id="clientCreditLimit" min="0" step="0.01" value="0">
+                </div>
+
+            </div>
+
+            <div class="actions">
+                <button class="btn success">Ajouter le client</button>
+            </div>
+
+        </form>
+    </div>
+
+    <div class="panel">
+        <h3>Clients</h3>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Code</th>
+                        <th>Nom</th>
+                        <th>Téléphone</th>
+                        <th>Limite crédit</th>
+                        <th>Créance</th>
+                    </tr>
+                </thead>
+                <tbody id="clientsTable"></tbody>
+            </table>
+        </div>
+    </div>
+
+</section>
+
+
+<!-- REPORTS -->
+<section id="reports" class="page">
+
+    <div class="panel">
+        <h3>Rapports</h3>
+
+        <div class="cards">
+
+            <div class="card">
+                <div class="label">Ventes</div>
+                <div class="value" id="reportSales">0</div>
+            </div>
+
+            <div class="card">
+                <div class="label">Achats</div>
+                <div class="value" id="reportPurchases">0</div>
+            </div>
+
+            <div class="card">
+                <div class="label">Dépenses</div>
+                <div class="value" id="reportExpenses">0</div>
+            </div>
+
+            <div class="card">
+                <div class="label">Résultat estimé</div>
+                <div class="value" id="reportProfit">0</div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="panel">
+        <h3>Résumé des articles</h3>
+        <div id="reportStock"></div>
+    </div>
+
+</section>
+
+
+<!-- SETTINGS -->
+<section id="settings" class="page">
+
+    <div class="panel">
+        <h3>Paramètres</h3>
+
+        <div class="form-grid">
+
+            <div class="field">
+                <label>Nom de l'entreprise</label>
+                <input id="businessName" value="Gestion Jeeb-Ani">
+            </div>
+
+            <div class="field">
+                <label>Devise</label>
+                <select id="currency">
+                    <option value="USD">USD</option>
+                    <option value="CDF">CDF</option>
+                    <option value="EUR">EUR</option>
+                </select>
+            </div>
+
+            <div class="field">
+                <label>Marge par défaut (%)</label>
+                <input id="defaultMargin" type="number" min="0" step="0.01" value="20">
+            </div>
+
+        </div>
+
+        <div class="actions">
+            <button class="btn success" onclick="saveSettings()">
+                Enregistrer les paramètres
+            </button>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h3>Données</h3>
+
+        <div class="actions">
+            <button class="btn" onclick="exportData()">Exporter les données</button>
+
+            <label class="btn secondary">
+                Importer
+                <input
+                    type="file"
+                    id="importFile"
+                    accept=".json"
+                    style="display:none"
+                    onchange="importData(event)"
+                >
+            </label>
+
+            <button class="btn danger" onclick="clearAllData()">
+                Réinitialiser les données
+            </button>
+        </div>
+    </div>
+
+</section>
+
+<div class="footer">
+    Gestion Jeeb-Ani — Gestion commerciale et financière
+</div>
+
+</div>
+</main>
+</div>
+
+
+<!-- MODAL ARTICLE -->
+<div class="modal" id="articleModal">
+
+    <div class="modal-box">
+
+        <div class="modal-head">
+            <h3 id="articleModalTitle">Nouvel article</h3>
+            <button class="close" onclick="closeArticleModal()">×</button>
+        </div>
+
+        <form id="articleForm">
+
+            <input type="hidden" id="articleEditId">
+
+            <div class="form-grid">
+
+                <div class="field">
+                    <label>Code article *</label>
+                    <input id="articleCode" required>
+                </div>
+
+                <div class="field">
+                    <label>Désignation *</label>
+                    <input id="articleName" required>
+                </div>
+
+                <div class="field">
+                    <label>Catégorie</label>
+                    <input id="articleCategory">
+                </div>
+
+                <div class="field">
+                    <label>Unité</label>
+                    <select id="articleUnit">
+                        <option>Pièce</option>
+                        <option>Kg</option>
+                        <option>G</option>
+                        <option>Litre</option>
+                        <option>Mètre</option>
+                        <option>Carton</option>
+                        <option>Sac</option>
+                        <option>Boîte</option>
+                        <option>Autre</option>
+                    </select>
+                </div>
+
+                <div class="field">
+                    <label>Stock initial</label>
+                    <input
+                        type="number"
+                        id="articleInitialStock"
+                        min="0"
+                        step="0.01"
+                        value="0"
+                    >
+                </div>
+
+                <div class="field">
+                    <label>Seuil d'alerte</label>
+                    <input
+                        type="number"
+                        id="articleAlertThreshold"
+                        min="0"
+                        step="0.01"
+                        value="5"
+                    >
+                </div>
+
+                <div class="field">
+                    <label>Prix d'achat / coût unitaire</label>
+                    <input
+                        type="number"
+                        id="articleCost"
+                        min="0"
+                        step="0.01"
+                        value="0"
+                    >
+                </div>
+
+                <div class="field">
+                    <label>Marge par défaut (%)</label>
+                    <input
+                        type="number"
+                        id="articleMargin"
+                        min="0"
+                        step="0.01"
+                        value="20"
+                    >
+                </div>
+
+                <div class="field">
+                    <label>Prix de vente calculé</label>
+                    <input
+                        type="number"
+                        id="articleCalculatedPrice"
+                        readonly
+                    >
+                </div>
+
+                <div class="field">
+                    <label>Prix de vente final *</label>
+                    <input
+                        type="number"
+                        id="articleSellingPrice"
+                        min="0"
+                        step="0.01"
+                        required
+                    >
+                </div>
+
+                <div class="field">
+                    <label>Marge unitaire réelle</label>
+                    <input
+                        type="number"
+                        id="articleRealMargin"
+                        readonly
+                    >
+                </div>
+
+                <div class="field">
+                    <label>Marge réelle (%)</label>
+                    <input
+                        type="number"
+                        id="articleRealMarginPercent"
+                        readonly
+                    >
+                </div>
+
+                <div class="field full">
+                    <label>Observation</label>
+                    <textarea id="articleObservation"></textarea>
+                </div>
+
+            </div>
+
+            <div class="alert success" style="margin-top:15px">
+                Le prix de vente est d'abord calculé selon la marge,
+                puis vous pouvez le modifier avant d'enregistrer.
+            </div>
+
+            <div class="actions">
+                <button class="btn success" type="submit">
+                    Enregistrer l'article
+                </button>
+
+                <button
+                    type="button"
+                    class="btn secondary"
+                    onclick="closeArticleModal()"
+                >
+                    Annuler
+                </button>
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+
+
+<script>
+
+/* =========================================================
+   GESTION JEeb-ANI
+   BASE LOCALE
+========================================================= */
+
+const STORAGE_KEY = "jeebAni_v3";
+
+let data = {
+    articles: [],
+    sales: [],
+    purchases: [],
+    expenses: [],
+    clients: [],
+    payments: [],
+    accounts: [],
+    settings: {
+        businessName: "Gestion Jeeb-Ani",
+        currency: "USD",
+        defaultMargin: 20
+    }
+};
+
+
+/* =========================================================
+   INITIALISATION
+========================================================= */
+
+function loadData(){
+
+    try{
+
+        const saved = localStorage.getItem(STORAGE_KEY);
+
+        if(saved){
+
+            const parsed = JSON.parse(saved);
+
+            data = {
+                ...data,
+                ...parsed,
+                settings:{
+                    ...data.settings,
+                    ...(parsed.settings || {})
+                }
+            };
+
+        }
+
+    }catch(error){
+
+        console.error(error);
+
+        alert("Une erreur est survenue lors du chargement des données.");
+
+    }
+
+}
+
+
+function saveData(){
+
+    localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(data)
+    );
+
+}
+
+
+/* =========================================================
+   OUTILS
+========================================================= */
+
+function money(value){
+
+    const currency = data.settings.currency || "USD";
+
+    return new Intl.NumberFormat(
+        "fr-FR",
+        {
+            minimumFractionDigits:2,
+            maximumFractionDigits:2
+        }
+    ).format(Number(value || 0)) + " " + currency;
+
+}
+
+
+function number(value){
+
+    return Number(value || 0);
+
+}
+
+
+function today(){
+
+    return new Date().toISOString().slice(0,10);
+
+}
+
+
+function generateId(prefix){
+
+    return prefix + "_" +
+        Date.now() + "_" +
+        Math.random().toString(36).substring(2,8);
+
+}
+
+
+function generateNumber(prefix, collection){
+
+    const year = new Date().getFullYear();
+
+    return prefix +
+        "-" +
+        year +
+        "-" +
+        String(collection.length + 1).padStart(4,"0");
+
+}
+
+
+function articleById(id){
+
+    return data.articles.find(
+        article => article.id === id
+    );
+
+}
+
+
+function clientById(id){
+
+    return data.clients.find(
+        client => client.id === id
+    );
+
+}
+
+
+/* =========================================================
+   STOCK
+========================================================= */
+
+function getArticleStock(articleId){
+
+    const article = articleById(articleId);
+
+    if(!article) return 0;
+
+    let stock = number(article.initialStock);
+
+    data.purchases
+        .filter(p => p.articleId === articleId)
+        .forEach(p => {
+
+            stock += number(p.quantity);
+
+        });
+
+    data.sales
+        .filter(s => s.articleId === articleId)
+        .forEach(s => {
+
+            stock -= number(s.quantity);
+
+        });
+
+    return stock;
+
+}
+
+
+function getArticleAverageCost(articleId){
+
+    const article = articleById(articleId);
+
+    if(!article) return 0;
+
+    const purchases = data.purchases.filter(
+        p => p.articleId === articleId
+    );
+
+    let quantity = number(article.initialStock);
+    let value = quantity * number(article.cost);
+
+    purchases.forEach(p => {
+
+        quantity += number(p.quantity);
+
+        value += number(p.realUnitCost) *
+                 number(p.quantity);
+
+    });
+
+    if(quantity <= 0){
+
+        return number(article.cost);
+
+    }
+
+    return value / quantity;
+
+}
+
+
+/* =========================================================
+   NAVIGATION
+========================================================= */
+
+const pageTitles = {
+
+    dashboard:"Tableau de bord",
+    sales:"Ventes",
+    purchases:"Achats",
+    stock:"Articles & Stock",
+    finance:"Finances",
+    clients:"Clients",
+    reports:"Rapports",
+    settings:"Paramètres"
+
+};
+
+
+function showPage(page){
+
+    document
+        .querySelectorAll(".page")
+        .forEach(p => p.classList.remove("active"));
+
+    const selected =
+        document.getElementById(page);
+
+    if(selected){
+
+        selected.classList.add("active");
+
+    }
+
+    document
+        .querySelectorAll(".nav button")
+        .forEach(button => {
+
+            button.classList.toggle(
+                "active",
+                button.dataset.page === page
+            );
+
+        });
+
+    document.getElementById("pageTitle")
+        .textContent =
+        pageTitles[page] || "Gestion Jeeb-Ani";
+
+    if(page === "dashboard")
+        renderDashboard();
+
+    if(page === "stock")
+        renderStock();
+
+    if(page === "sales")
+        renderSales();
+
+    if(page === "purchases")
+        renderPurchases();
+
+    if(page === "finance")
+        renderExpenses();
+
+    if(page === "clients")
+        renderClients();
+
+    if(page === "reports")
+        renderReports();
+
+}
+
+
+/* =========================================================
+   ARTICLE MODAL
+========================================================= */
+
+function openArticleModal(id = null){
+
+    const modal =
+        document.getElementById("articleModal");
+
+    document.getElementById("articleForm").reset();
+
+    document.getElementById("articleEditId").value =
+        "";
+
+    document.getElementById("articleMargin").value =
+        data.settings.defaultMargin || 20;
+
+    document.getElementById("articleAlertThreshold").value =
+        5;
+
+    document.getElementById("articleInitialStock").value =
+        0;
+
+    document.getElementById("articleCost").value =
+        0;
+
+    document.getElementById("articleCalculatedPrice").value =
+        0;
+
+    document.getElementById("articleSellingPrice").value =
+        0;
+
+    document.getElementById("articleModalTitle").textContent =
+        id ? "Modifier l'article" : "Nouvel article";
+
+
+    if(id){
+
+        const article = articleById(id);
+
+        if(!article) return;
+
+        document.getElementById("articleEditId").value =
+            article.id;
+
+        document.getElementById("articleCode").value =
+            article.code || "";
+
+        document.getElementById("articleName").value =
+            article.name || "";
+
+        document.getElementById("articleCategory").value =
+            article.category || "";
+
+        document.getElementById("articleUnit").value =
+            article.unit || "Pièce";
+
+        document.getElementById("articleInitialStock").value =
+            article.initialStock || 0;
+
+        document.getElementById("articleAlertThreshold").value =
+            article.alertThreshold || 0;
+
+        document.getElementById("articleCost").value =
+            article.cost || 0;
+
+        document.getElementById("articleMargin").value =
+            article.margin || 0;
+
+        document.getElementById("articleSellingPrice").value =
+            article.sellingPrice || 0;
+
+        document.getElementById("articleObservation").value =
+            article.observation || "";
+
+    }
+
+    calculateArticlePrice();
+
+    modal.classList.add("show");
+
+}
+
+
+function closeArticleModal(){
+
+    document
+        .getElementById("articleModal")
+        .classList.remove("show");
+
+}
+
+
+/* =========================================================
+   CALCUL PRIX ET MARGE
+========================================================= */
+
+function calculateArticlePrice(){
+
+    const cost =
+        number(
+            document.getElementById("articleCost").value
+        );
+
+    const margin =
+        number(
+            document.getElementById("articleMargin").value
+        );
+
+    const calculated =
+        cost * (1 + margin / 100);
+
+    document.getElementById("articleCalculatedPrice").value =
+        calculated.toFixed(2);
+
+
+    const finalPriceInput =
+        document.getElementById("articleSellingPrice");
+
+    /*
+       Si le prix final n'a pas encore été modifié,
+       on le synchronise avec le prix calculé.
+    */
+    if(
+        !finalPriceInput.dataset.manual ||
+        number(finalPriceInput.value) === 0
+    ){
+
+        finalPriceInput.value =
+            calculated.toFixed(2);
+
+    }
+
+    calculateRealMargin();
+
+}
+
+
+function calculateRealMargin(){
+
+    const cost =
+        number(
+            document.getElementById("articleCost").value
+        );
+
+    const sellingPrice =
+        number(
+            document.getElementById("articleSellingPrice").value
+        );
+
+    const margin =
+        sellingPrice - cost;
+
+    const marginPercent =
+        cost > 0
+            ? (margin / cost) * 100
+            : 0;
+
+    document.getElementById("articleRealMargin").value =
+        margin.toFixed(2);
+
+    document.getElementById("articleRealMarginPercent").value =
+        marginPercent.toFixed(2);
+
+}
+
+
+document.getElementById("articleCost")
+    .addEventListener(
+        "input",
+        calculateArticlePrice
+    );
+
+document.getElementById("articleMargin")
+    .addEventListener(
+        "input",
+        calculateArticlePrice
+    );
+
+document.getElementById("articleSellingPrice")
+    .addEventListener(
+        "input",
+        function(){
+
+            this.dataset.manual = "true";
+
+            calculateRealMargin();
+
+        }
+    );
+
+
+/* =========================================================
+   ENREGISTREMENT ARTICLE
+========================================================= */
+
+document.getElementById("articleForm")
+.addEventListener("submit", function(event){
+
+    event.preventDefault();
+
+    const editId =
+        document.getElementById("articleEditId").value;
+
+    const code =
+        document.getElementById("articleCode").value.trim();
+
+    const name =
+        document.getElementById("articleName").value.trim();
+
+    if(!code || !name){
+
+        alert("Le code et la désignation sont obligatoires.");
+
+        return;
+
+    }
+
+
+    const cost =
+        number(
+            document.getElementById("articleCost").value
+        );
+
+    const sellingPrice =
+        number(
+            document.getElementById("articleSellingPrice").value
+        );
+
+    const margin =
+        number(
+            document.getElementById("articleMargin").value
+        );
+
+    const realMargin =
+        sellingPrice - cost;
+
+    const realMarginPercent =
+        cost > 0
+            ? realMargin / cost * 100
+            : 0;
+
+
+    const articleObject = {
+
+        id:
+            editId ||
+            generateId("ART"),
+
+        code,
+
+        name,
+
+        category:
+            document.getElementById("articleCategory").value.trim(),
+
+        unit:
+            document.getElementById("articleUnit").value,
+
+        initialStock:
+            number(
+                document.getElementById("articleInitialStock").value
+            ),
+
+        alertThreshold:
+            number(
+                document.getElementById("articleAlertThreshold").value
+            ),
+
+        cost,
+
+        margin,
+
+        calculatedSellingPrice:
+            number(
+                document.getElementById("articleCalculatedPrice").value
+            ),
+
+        sellingPrice,
+
+        realMargin,
+
+        realMarginPercent,
+
+        observation:
+            document.getElementById("articleObservation").value.trim(),
+
+        updatedAt:
+            new Date().toISOString()
+
+    };
+
+
+    if(editId){
+
+        const index =
+            data.articles.findIndex(
+                a => a.id === editId
+            );
+
+        if(index >= 0){
+
+            /*
+              On conserve les informations existantes
+              qui ne doivent pas être perdues.
+            */
+
+            data.articles[index] = {
+                ...data.articles[index],
+                ...articleObject
+            };
+
+        }
+
+    }else{
+
+        articleObject.createdAt =
+            new Date().toISOString();
+
+        data.articles.push(articleObject);
+
+    }
+
+
+    saveData();
+
+    closeArticleModal();
+
+    renderStock();
+
+    refreshArticleSelectors();
+
+    renderDashboard();
+
+    alert(
+        editId
+            ? "Article modifié avec succès."
+            : "Article enregistré avec succès."
+    );
+
+});
+
+
+/* =========================================================
+   AFFICHAGE STOCK
+========================================================= */
+
+function renderStock(){
+
+    const tbody =
+        document.getElementById("stockTable");
+
+    const search =
+        (
+            document.getElementById("stockSearch")
+            ?.value || ""
+        ).toLowerCase();
+
+    const filter =
+        document.getElementById("stockFilter")
+        ?.value || "all";
+
+
+    let articles =
+        data.articles.filter(article => {
+
+            const text =
+                (
+                    article.code + " " +
+                    article.name + " " +
+                    (article.category || "")
+                ).toLowerCase();
+
+            return text.includes(search);
+
+        });
+
+
+    articles =
+        articles.filter(article => {
+
+            const stock =
+                getArticleStock(article.id);
+
+            const threshold =
+                number(article.alertThreshold);
+
+            if(filter === "out")
+                return stock <= 0;
+
+            if(filter === "low")
+                return stock > 0 && stock <= threshold;
+
+            if(filter === "ok")
+                return stock > threshold;
+
+            return true;
+
+        });
+
+
+    tbody.innerHTML = "";
+
+
+    if(!articles.length){
+
+        tbody.innerHTML =
+            `<tr>
+                <td colspan="14" class="empty">
+                    Aucun article trouvé.
+                </td>
+             </tr>`;
+
+        renderStockAlerts();
+
+        return;
+
+    }
+
+
+    articles.forEach(article => {
+
+        const stock =
+            getArticleStock(article.id);
+
+        const cost =
+            getArticleAverageCost(article.id);
+
+        const price =
+            number(article.sellingPrice);
+
+        const margin =
+            price - cost;
+
+        const value =
+            stock * cost;
+
+        const threshold =
+            number(article.alertThreshold);
+
+
+        let status = "";
+        let rowClass = "";
+
+        if(stock <= 0){
+
+            status =
+                `<span class="badge out">Rupture</span>`;
+
+            rowClass = "danger-row";
+
+        }
+        else if(stock <= threshold){
+
+            status =
+                `<span class="badge low">Stock faible</span>`;
+
+            rowClass = "warning-row";
+
+        }
+        else{
+
+            status =
+                `<span class="badge ok">Normal</span>`;
+
+        }
+
+
+        const row =
+            document.createElement("tr");
+
+        row.className = rowClass;
+
+
+        row.innerHTML = `
+
+            <td>${escapeHtml(article.code)}</td>
+
+            <td>
+                <strong>${escapeHtml(article.name)}</strong>
+            </td>
+
+            <td>${escapeHtml(article.category || "-")}</td>
+
+            <td>${escapeHtml(article.unit || "-")}</td>
+
+            <td>${number(article.initialStock)}</td>
+
+            <td>${getPurchaseQuantity(article.id)}</td>
+
+            <td>${getSalesQuantity(article.id)}</td>
+
+            <td><strong>${stock.toFixed(2)}</strong></td>
+
+            <td>${money(cost)}</td>
+
+            <td>${money(price)}</td>
+
+            <td>${money(margin)}</td>
+
+            <td>${money(value)}</td>
+
+            <td>${status}</td>
+
+            <td>
+                <div class="actions">
+
+                    <button
+                        class="btn light"
+                        onclick="openArticleModal('${article.id}')"
+                    >
+                        Modifier
+                    </button>
+
+                    <button
+                        class="btn danger"
+                        onclick="deleteArticle('${article.id}')"
+                    >
+                        Supprimer
+                    </button>
+
+                </div>
+            </td>
+
+        `;
+
+
+        tbody.appendChild(row);
+
+    });
+
+
+    renderStockAlerts();
+
+}
+
+
+function getPurchaseQuantity(articleId){
+
+    return data.purchases
+        .filter(p => p.articleId === articleId)
+        .reduce(
+            (sum,p) =>
+                sum + number(p.quantity),
+            0
+        )
+        .toFixed(2);
+
+}
+
+
+function getSalesQuantity(articleId){
+
+    return data.sales
+        .filter(s => s.articleId === articleId)
+        .reduce(
+            (sum,s) =>
+                sum + number(s.quantity),
+            0
+        )
+        .toFixed(2);
+
+}
+
+
+/* =========================================================
+   ALERTES STOCK
+========================================================= */
+
+function renderStockAlerts(){
+
+    const container =
+        document.getElementById("stockAlerts");
+
+    const low =
+        data.articles.filter(article => {
+
+            const stock =
+                getArticleStock(article.id);
+
+            return stock <=
+                number(article.alertThreshold);
+
+        });
+
+
+    if(!low.length){
+
+        container.innerHTML =
+            `<div class="alert success">
+                Aucun article en alerte de stock.
+             </div>`;
+
+        return;
+
+    }
+
+
+    container.innerHTML =
+        `<div class="alert warning">
+            <strong>${low.length}</strong>
+            article(s) nécessitent une attention.
+         </div>`;
+
+}
+
+
+function deleteArticle(id){
+
+    const article =
+        articleById(id);
+
+    if(!article) return;
+
+
+    const hasTransactions =
+        data.sales.some(
+            s => s.articleId === id
+        ) ||
+        data.purchases.some(
+            p => p.articleId === id
+        );
+
+
+    if(hasTransactions){
+
+        alert(
+            "Cet article possède déjà des mouvements. " +
+            "Pour préserver l'historique, sa suppression " +
+            "n'est pas autorisée."
+        );
+
+        return;
+
+    }
+
+
+    if(
+        !confirm(
+            "Voulez-vous vraiment supprimer cet article ?"
+        )
+    ) return;
+
+
+    data.articles =
+        data.articles.filter(
+            a => a.id !== id
+        );
+
+    saveData();
+
+    renderStock();
+
+    refreshArticleSelectors();
+
+    renderDashboard();
+
+}
+
+
+/* =========================================================
+   SELECTEURS ARTICLES
+========================================================= */
+
+function refreshArticleSelectors(){
+
+    const selectors = [
+
+        document.getElementById("saleArticle"),
+
+        document.getElementById("purchaseArticle")
+
+    ];
+
+
+    selectors.forEach(select => {
+
+        if(!select) return;
+
+        const current =
+            select.value;
+
+        select.innerHTML =
+            `<option value="">
+                Sélectionner un article
+             </option>`;
+
+
+        data.articles.forEach(article => {
+
+            const option =
+                document.createElement("option");
+
+            option.value =
+                article.id;
+
+            option.textContent =
+                `${article.code} — ${article.name}`;
+
+            select.appendChild(option);
+
+        });
+
+
+        select.value = current;
+
+    });
+
+}
+
+
+function refreshClientSelectors(){
+
+    const select =
+        document.getElementById("saleClient");
+
+    if(!select) return;
+
+    select.innerHTML =
+        `<option value="">
+            Client comptant
+         </option>`;
+
+
+    data.clients.forEach(client => {
+
+        const option =
+            document.createElement("option");
+
+        option.value =
+            client.id;
+
+        option.textContent =
+            `${client.code} — ${client.name}`;
+
+        select.appendChild(option);
+
+    });
+
+}
+
+
+/* =========================================================
+   VENTES
+========================================================= */
+
+document.getElementById("saleArticle")
+.addEventListener("change", function(){
+
+    const article =
+        articleById(this.value);
+
+    if(!article) return;
+
+    document.getElementById("salePrice").value =
+        number(article.sellingPrice).toFixed(2);
+
+});
+
+
+document.getElementById("saleForm")
+.addEventListener("submit", function(event){
+
+    event.preventDefault();
+
+
+    const articleId =
+        document.getElementById("saleArticle").value;
+
+    const quantity =
+        number(
+            document.getElementById("saleQty").value
+        );
+
+    const price =
+        number(
+            document.getElementById("salePrice").value
+        );
+
+
+    const article =
+        articleById(articleId);
+
+
+    if(!article){
+
+        alert("Veuillez sélectionner un article.");
+
+        return;
+
+    }
+
+
+    const available =
+        getArticleStock(articleId);
+
+
+    if(quantity <= 0){
+
+        alert("La quantité doit être supérieure à zéro.");
+
+        return;
+
+    }
+
+
+    if(quantity > available){
+
+        alert(
+            `Stock insuffisant.\n\n` +
+            `Disponible : ${available}\n` +
+            `Demandé : ${quantity}`
+        );
+
+        return;
+
+    }
+
+
+    const total =
+        quantity * price;
+
+
+    const clientId =
+        document.getElementById("saleClient").value;
+
+
+    const paymentMethod =
+        document.getElementById("salePaymentMethod").value;
+
+
+    let paymentStatus =
+        paymentMethod === "Crédit"
+            ? "Crédit"
+            : "Payé";
+
+
+    data.sales.push({
+
+        id:generateId("VTE"),
+
+        number:generateNumber(
+            "VTE",
+            data.sales
+        ),
+
+        date:
+            document.getElementById("saleDate").value ||
+            today(),
+
+        articleId,
+
+        quantity,
+
+        price,
+
+        total,
+
+        clientId,
+
+        paymentMethod,
+
+        paymentStatus,
+
+        observation:
+            document.getElementById("saleObservation").value.trim(),
+
+        cost:
+            getArticleAverageCost(articleId),
+
+        createdAt:
+            new Date().toISOString()
+
+    });
+
+
+    if(clientId && paymentStatus === "Crédit"){
+
+        /*
+          La créance est calculée à partir
+          des ventes crédit.
+        */
+
+    }
+
+
+    saveData();
+
+    this.reset();
+
+    document.getElementById("saleDate").value =
+        today();
+
+    renderSales();
+
+    renderStock();
+
+    renderDashboard();
+
+    alert("Vente enregistrée avec succès.");
+
+});
+
+
+function renderSales(){
+
+    const tbody =
+        document.getElementById("salesTable");
+
+    tbody.innerHTML = "";
+
+
+    if(!data.sales.length){
+
+        tbody.innerHTML =
+            `<tr>
+                <td colspan="8" class="empty">
+                    Aucune vente enregistrée.
+                </td>
+             </tr>`;
+
+        return;
+
+    }
+
+
+    [...data.sales]
+        .reverse()
+        .forEach(sale => {
+
+            const article =
+                articleById(sale.articleId);
+
+            const client =
+                clientById(sale.clientId);
+
+
+            const row =
+                document.createElement("tr");
+
+
+            row.innerHTML = `
+
+                <td>${sale.date}</td>
+
+                <td>${sale.number || "-"}</td>
+
+                <td>
+                    ${escapeHtml(
+                        article
+                            ? article.name
+                            : "Article supprimé"
+                    )}
+                </td>
+
+                <td>${number(sale.quantity)}</td>
+
+                <td>${money(sale.price)}</td>
+
+                <td>${money(sale.total)}</td>
+
+                <td>
+                    ${escapeHtml(
+                        client
+                            ? client.name
+                            : "Comptant"
+                    )}
+                </td>
+
+                <td>${escapeHtml(sale.paymentMethod)}</td>
+
+            `;
+
+
+            tbody.appendChild(row);
+
+        });
+
+}
+
+
+/* =========================================================
+   ACHATS
+========================================================= */
+
+document.getElementById("purchaseForm")
+.addEventListener("submit", function(event){
+
+    event.preventDefault();
+
+
+    const articleId =
+        document.getElementById("purchaseArticle").value;
+
+    const quantity =
+        number(
+            document.getElementById("purchaseQty").value
+        );
+
+    const purchasePrice =
+        number(
+            document.getElementById("purchasePrice").value
+        );
+
+
+    if(!articleId){
+
+        alert("Veuillez sélectionner un article.");
+
+        return;
+
+    }
+
+
+    if(quantity <= 0){
+
+        alert("La quantité doit être supérieure à zéro.");
+
+        return;
+
+    }
+
+
+    const transport =
+        number(
+            document.getElementById("purchaseTransport").value
+        );
+
+    const taxes =
+        number(
+            document.getElementById("purchaseTaxes").value
+        );
+
+    const other =
+        number(
+            document.getElementById("purchaseOther").value
+        );
+
+
+    const goodsTotal =
+        quantity * purchasePrice;
+
+
+    const additionalCosts =
+        transport +
+        taxes +
+        other;
+
+
+    const totalCost =
+        goodsTotal +
+        additionalCosts;
+
+
+    /*
+       Pour un seul article, tous les frais
+       sont affectés à cette ligne.
+    */
+
+    const realUnitCost =
+        totalCost / quantity;
+
+
+    const article =
+        articleById(articleId);
+
+
+    const margin =
+        article
+            ? number(article.margin)
+            : number(data.settings.defaultMargin);
+
+
+    const suggestedSellingPrice =
+        realUnitCost *
+        (1 + margin / 100);
+
+
+    let finalSellingPrice =
+        suggestedSellingPrice;
+
+
+    /*
+       Le prix calculé peut être modifié avant validation.
+       Pour cette première version, nous demandons
+       confirmation de la valeur finale.
+    */
+
+    const modifiedPrice =
+        prompt(
+            "Prix de vente suggéré : " +
+            suggestedSellingPrice.toFixed(2) +
+            "\n\nEntrez le prix de vente final.",
+            suggestedSellingPrice.toFixed(2)
+        );
+
+
+    if(modifiedPrice !== null){
+
+        const value =
+            number(modifiedPrice);
+
+        if(value > 0){
+
+            finalSellingPrice = value;
+
+        }
+
+    }
+
+
+    data.purchases.push({
+
+        id:generateId("ACH"),
+
+        number:generateNumber(
+            "ACH",
+            data.purchases
+        ),
+
+        date:
+            document.getElementById("purchaseDate").value ||
+            today(),
+
+        supplier:
+            document.getElementById("purchaseSupplier").value.trim(),
+
+        reference:
+            document.getElementById("purchaseReference").value.trim(),
+
+        articleId,
+
+        quantity,
+
+        purchasePrice,
+
+        goodsTotal,
+
+        transport,
+
+        taxes,
+
+        otherCosts:other,
+
+        additionalCosts,
+
+        totalCost,
+
+        realUnitCost,
+
+        suggestedSellingPrice,
+
+        finalSellingPrice,
+
+        createdAt:
+            new Date().toISOString()
+
+    });
+
+
+    /*
+       Le prix final devient le prix de vente
+       actuel de l'article.
+    */
+
+    if(article){
+
+        article.sellingPrice =
+            finalSellingPrice;
+
+        article.cost =
+            realUnitCost;
+
+        article.calculatedSellingPrice =
+            suggestedSellingPrice;
+
+        article.realMargin =
+            finalSellingPrice -
+            realUnitCost;
+
+        article.realMarginPercent =
+            realUnitCost > 0
+                ? (
+                    (finalSellingPrice -
+                    realUnitCost) /
+                    realUnitCost
+                ) * 100
+                : 0;
+
+    }
+
+
+    saveData();
+
+    this.reset();
+
+    document.getElementById("purchaseDate").value =
+        today();
+
+    renderPurchases();
+
+    renderStock();
+
+    refreshArticleSelectors();
+
+    renderDashboard();
+
+
+    alert(
+        "Achat enregistré.\n\n" +
+        "Coût réel unitaire : " +
+        money(realUnitCost) +
+        "\nPrix de vente final : " +
+        money(finalSellingPrice)
+    );
+
+});
+
+
+function renderPurchases(){
+
+    const tbody =
+        document.getElementById("purchasesTable");
+
+    tbody.innerHTML = "";
+
+
+    if(!data.purchases.length){
+
+        tbody.innerHTML =
+            `<tr>
+                <td colspan="8" class="empty">
+                    Aucun achat enregistré.
+                </td>
+             </tr>`;
+
+        return;
+
+    }
+
+
+    [...data.purchases]
+        .reverse()
+        .forEach(purchase => {
+
+            const article =
+                articleById(purchase.articleId);
+
+
+            const row =
+                document.createElement("tr");
+
+
+            row.innerHTML = `
+
+                <td>${purchase.date}</td>
+
+                <td>${purchase.number || "-"}</td>
+
+                <td>${escapeHtml(
+                    purchase.supplier || "-"
+                )}</td>
+
+                <td>${escapeHtml(
+                    article
+                        ? article.name
+                        : "Article supprimé"
+                )}</td>
+
+                <td>${number(purchase.quantity)}</td>
+
+                <td>${money(
+                    purchase.purchasePrice
+                )}</td>
+
+                <td>${money(
+                    purchase.additionalCosts
+                )}</td>
+
+                <td>${money(
+                    purchase.realUnitCost
+                )}</td>
+
+            `;
+
+
+            tbody.appendChild(row);
+
+        });
+
+}
+
+
+/* =========================================================
+   DEPENSES
+========================================================= */
+
+document.getElementById("expenseForm")
+.addEventListener("submit", function(event){
+
+    event.preventDefault();
+
+
+    const amount =
+        number(
+            document.getElementById("expenseAmount").value
+        );
+
+
+    if(amount <= 0){
+
+        alert("Le montant doit être supérieur à zéro.");
+
+        return;
+
+    }
+
+
+    data.expenses.push({
+
+        id:generateId("DEP"),
+
+        date:
+            document.getElementById("expenseDate").value ||
+            today(),
+
+        category:
+            document.getElementById("expenseCategory").value,
+
+        label:
+            document.getElementById("expenseLabel").value.trim(),
+
+        amount,
+
+        paymentMethod:
+            document.getElementById("expensePaymentMethod").value,
+
+        createdAt:
+            new Date().toISOString()
+
+    });
+
+
+    saveData();
+
+    this.reset();
+
+    document.getElementById("expenseDate").value =
+        today();
+
+    renderExpenses();
+
+    renderDashboard();
+
+    alert("Dépense enregistrée.");
+
+});
+
+
+function renderExpenses(){
+
+    const tbody =
+        document.getElementById("expensesTable");
+
+    tbody.innerHTML = "";
+
+
+    if(!data.expenses.length){
+
+        tbody.innerHTML =
+            `<tr>
+                <td colspan="5" class="empty">
+                    Aucune dépense enregistrée.
+                </td>
+             </tr>`;
+
+        return;
+
+    }
+
+
+    [...data.expenses]
+        .reverse()
+        .forEach(expense => {
+
+            const row =
+                document.createElement("tr");
+
+
+            row.innerHTML = `
+
+                <td>${expense.date}</td>
+
+                <td>${escapeHtml(
+                    expense.category
+                )}</td>
+
+                <td>${escapeHtml(
+                    expense.label
+                )}</td>
+
+                <td>${money(
+                    expense.amount
+                )}</td>
+
+                <td>${escapeHtml(
+                    expense.paymentMethod
+                )}</td>
+
+            `;
+
+
+            tbody.appendChild(row);
+
+        });
+
+}
+
+
+/* =========================================================
+   CLIENTS
+========================================================= */
+
+document.getElementById("clientForm")
+.addEventListener("submit", function(event){
+
+    event.preventDefault();
+
+
+    const name =
+        document.getElementById("clientName")
+        .value.trim();
+
+
+    if(!name){
+
+        alert("Le nom du client est obligatoire.");
+
+        return;
+
+    }
+
+
+    data.clients.push({
+
+        id:generateId("CLI"),
+
+        code:
+            generateNumber(
+                "CLI",
+                data.clients
+            ),
+
+        name,
+
+        phone:
+            document.getElementById("clientPhone").value.trim(),
+
+        creditLimit:
+            number(
+                document.getElementById("clientCreditLimit").value
+            ),
+
+        createdAt:
+            new Date().toISOString()
+
+    });
+
+
+    saveData();
+
+    this.reset();
+
+    renderClients();
+
+    refreshClientSelectors();
+
+    alert("Client ajouté avec succès.");
+
+});
+
+
+function getClientReceivable(clientId){
+
+    return data.sales
+        .filter(
+            sale =>
+                sale.clientId === clientId &&
+                sale.paymentStatus === "Crédit"
+        )
+        .reduce(
+            (sum,sale) =>
+                sum + number(sale.total),
+            0
+        );
+
+}
+
+
+function renderClients(){
+
+    const tbody =
+        document.getElementById("clientsTable");
+
+    tbody.innerHTML = "";
+
+
+    if(!data.clients.length){
+
+        tbody.innerHTML =
+            `<tr>
+                <td colspan="5" class="empty">
+                    Aucun client enregistré.
+                </td>
+             </tr>`;
+
+        return;
+
+    }
+
+
+    data.clients.forEach(client => {
+
+        const receivable =
+            getClientReceivable(client.id);
+
+
+        const row =
+            document.createElement("tr");
+
+
+        row.innerHTML = `
+
+            <td>${escapeHtml(client.code)}</td>
+
+            <td>${escapeHtml(client.name)}</td>
+
+            <td>${escapeHtml(client.phone || "-")}</td>
+
+            <td>${money(client.creditLimit)}</td>
+
+            <td>${money(receivable)}</td>
+
+        `;
+
+
+        tbody.appendChild(row);
+
+    });
+
+}
+
+
+/* =========================================================
+   DASHBOARD
+========================================================= */
+
+function renderDashboard(){
+
+    const salesTotal =
+        data.sales.reduce(
+            (sum,sale) =>
+                sum + number(sale.total),
+            0
+        );
+
+
+    const expensesTotal =
+        data.expenses.reduce(
+            (sum,expense) =>
+                sum + number(expense.amount),
+            0
+        );
+
+
+    const receivables =
+        data.sales
+            .filter(
+                sale =>
+                    sale.paymentStatus === "Crédit"
+            )
+            .reduce(
+                (sum,sale) =>
+                    sum + number(sale.total),
+                0
+            );
+
+
+    const stockValue =
+        data.articles.reduce(
+            (sum,article) => {
+
+                const stock =
+                    getArticleStock(article.id);
+
+                const cost =
+                    getArticleAverageCost(article.id);
+
+                return sum +
+                    stock * cost;
+
+            },
+            0
+        );
+
+
+    document.getElementById("dashSales")
+        .textContent =
+        money(salesTotal);
+
+    document.getElementById("dashExpenses")
+        .textContent =
+        money(expensesTotal);
+
+    document.getElementById("dashReceivables")
+        .textContent =
+        money(receivables);
+
+    document.getElementById("dashStock")
+        .textContent =
+        money(stockValue);
+
+
+    renderDashboardAlerts();
+
+
+    const profit =
+        salesTotal -
+        expensesTotal;
+
+
+    document.getElementById("dashboardSummary")
+        .innerHTML = `
+
+        <p>
+            <strong>Ventes :</strong>
+            ${money(salesTotal)}
+        </p>
+
+        <p>
+            <strong>Dépenses générales :</strong>
+            ${money(expensesTotal)}
+        </p>
+
+        <p>
+            <strong>Créances :</strong>
+            ${money(receivables)}
+        </p>
+
+        <p>
+            <strong>Résultat simplifié :</strong>
+            ${money(profit)}
+        </p>
+
+        <p>
+            <strong>Nombre d'articles :</strong>
+            ${data.articles.length}
+        </p>
+
+    `;
+
+}
+
+
+function renderDashboardAlerts(){
+
+    const container =
+        document.getElementById(
+            "dashboardStockAlerts"
+        );
+
+
+    const alerts =
+        data.articles.filter(article => {
+
+            return getArticleStock(article.id)
+                <= number(article.alertThreshold);
+
+        });
+
+
+    if(!alerts.length){
+
+        container.innerHTML =
+            `<div class="alert success">
+                Tous les stocks sont au-dessus des seuils d'alerte.
+             </div>`;
+
+        return;
+
+    }
+
+
+    container.innerHTML = "";
+
+
+    alerts.forEach(article => {
+
+        const stock =
+            getArticleStock(article.id);
+
+        const div =
+            document.createElement("div");
+
+        div.className =
+            "alert warning";
+
+        div.innerHTML =
+            `<strong>${escapeHtml(article.name)}</strong>
+             :
+             ${stock <= 0
+                ? "Rupture"
+                : "Stock faible (" + stock + ")"
+             }`;
+
+        container.appendChild(div);
+
+    });
+
+}
+
+
+/* =========================================================
+   RAPPORTS
+========================================================= */
+
+function renderReports(){
+
+    const sales =
+        data.sales.reduce(
+            (sum,s) =>
+                sum + number(s.total),
+            0
+        );
+
+    const purchases =
+        data.purchases.reduce(
+            (sum,p) =>
+                sum + number(p.totalCost),
+            0
+        );
+
+    const expenses =
+        data.expenses.reduce(
+            (sum,e) =>
+                sum + number(e.amount),
+            0
+        );
+
+
+    const grossMargin =
+        data.sales.reduce(
+            (sum,sale) => {
+
+                const cost =
+                    number(sale.cost);
+
+                return sum +
+                    (
+                        number(sale.price) -
+                        cost
+                    ) *
+                    number(sale.quantity);
+
+            },
+            0
+        );
+
+
+    const result =
+        grossMargin -
+        expenses;
+
+
+    document.getElementById("reportSales")
+        .textContent =
+        money(sales);
+
+    document.getElementById("reportPurchases")
+        .textContent =
+        money(purchases);
+
+    document.getElementById("reportExpenses")
+        .textContent =
+        money(expenses);
+
+    document.getElementById("reportProfit")
+        .textContent =
+        money(result);
+
+
+    const stock =
+        data.articles.map(article => {
+
+            const quantity =
+                getArticleStock(article.id);
+
+            const cost =
+                getArticleAverageCost(article.id);
+
+            return `
+
+                <tr>
+
+                    <td>${escapeHtml(article.code)}</td>
+
+                    <td>${escapeHtml(article.name)}</td>
+
+                    <td>${quantity.toFixed(2)}</td>
+
+                    <td>${money(cost)}</td>
+
+                    <td>${money(quantity * cost)}</td>
+
+                </tr>
+
+            `;
+
+        }).join("");
+
+
+    document.getElementById("reportStock")
+        .innerHTML = `
+
+        <div class="table-wrap">
+
+            <table>
+
+                <thead>
+
+                    <tr>
+                        <th>Code</th>
+                        <th>Article</th>
+                        <th>Stock</th>
+                        <th>Coût</th>
+                        <th>Valeur</th>
+                    </tr>
+
+                </thead>
+
+                <tbody>
+
+                    ${stock ||
+                        `<tr>
+                            <td colspan="5" class="empty">
+                                Aucun article.
+                            </td>
+                         </tr>`
+                    }
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    `;
+
+}
+
+
+/* =========================================================
+   PARAMÈTRES
+========================================================= */
+
+function saveSettings(){
+
+    data.settings.businessName =
+        document.getElementById("businessName").value;
+
+    data.settings.currency =
+        document.getElementById("currency").value;
+
+    data.settings.defaultMargin =
+        number(
+            document.getElementById("defaultMargin").value
+        );
+
+
+    saveData();
+
+    alert("Paramètres enregistrés.");
+
+    renderDashboard();
+
+    renderStock();
+
+}
+
+
+function loadSettings(){
+
+    document.getElementById("businessName").value =
+        data.settings.businessName || "Gestion Jeeb-Ani";
+
+    document.getElementById("currency").value =
+        data.settings.currency || "USD";
+
+    document.getElementById("defaultMargin").value =
+        data.settings.defaultMargin || 20;
+
+}
+
+
+/* =========================================================
+   EXPORT / IMPORT
+========================================================= */
+
+function exportData(){
+
+    const blob =
+        new Blob(
+            [
+                JSON.stringify(
+                    data,
+                    null,
+                    2
+                )
+            ],
+            {
+                type:"application/json"
+            }
+        );
+
+
+    const url =
+        URL.createObjectURL(blob);
+
+
+    const a =
+        document.createElement("a");
+
+    a.href = url;
+
+    a.download =
+        "Gestion_Jeeb_Ani_sauvegarde_" +
+        today() +
+        ".json";
+
+    a.click();
+
+    URL.revokeObjectURL(url);
+
+}
+
+
+function importData(event){
+
+    const file =
+        event.target.files[0];
+
+    if(!file) return;
+
+
+    const reader =
+        new FileReader();
+
+
+    reader.onload = function(e){
+
+        try{
+
+            const imported =
+                JSON.parse(e.target.result);
+
+
+            if(
+                !imported ||
+                typeof imported !== "object"
+            ){
+
+                throw new Error(
+                    "Format invalide"
+                );
+
+            }
+
+
+            data = {
+
+                ...data,
+
+                ...imported,
+
+                settings:{
+                    ...data.settings,
+                    ...(imported.settings || {})
+                }
+
+            };
+
+
+            saveData();
+
+            refreshAll();
+
+            alert(
+                "Données importées avec succès."
+            );
+
+
+        }catch(error){
+
+            console.error(error);
+
+            alert(
+                "Impossible d'importer ce fichier."
+            );
+
+        }
+
+    };
+
+
+    reader.readAsText(file);
+
+}
+
+
+function clearAllData(){
+
+    if(
+        !confirm(
+            "ATTENTION : cette action supprimera " +
+            "toutes les données locales de l'application.\n\n" +
+            "Continuer ?"
+        )
+    ) return;
+
+
+    localStorage.removeItem(STORAGE_KEY);
+
+    location.reload();
+
+}
+
+
+/* =========================================================
+   UTILITAIRE SECURITE HTML
+========================================================= */
+
+function escapeHtml(value){
+
+    return String(value ?? "")
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;")
+        .replaceAll("'","&#039;");
+
+}
+
+
+/* =========================================================
+   REFRESH GENERAL
+========================================================= */
+
+function refreshAll(){
+
+    refreshArticleSelectors();
+
+    refreshClientSelectors();
+
+    renderDashboard();
+
+    renderSales();
+
+    renderPurchases();
+
+    renderStock();
+
+    renderExpenses();
+
+    renderClients();
+
+    renderReports();
+
+    loadSettings();
+
+}
+
+
+/* =========================================================
+   INITIALISATION
+========================================================= */
+
+loadData();
+
+loadSettings();
+
+document.getElementById("saleDate").value =
+    today();
+
+document.getElementById("purchaseDate").value =
+    today();
+
+document.getElementById("expenseDate").value =
+    today();
+
+refreshAll();
+
+</script>
+
+</body>
+</html>
